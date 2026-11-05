@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   test-and-build:
@@ -29,5 +30,22 @@ jobs:
       - name: Run application tests
         run: python -m unittest discover -v
 
-      - name: Build Docker image
-        run: docker build -t devops-capstone:${{ github.sha }} .
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish Docker image
+        if: github.event_name == 'push'
+        run: |
+          IMAGE=ghcr.io/${{ github.repository }}
+          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          docker build -t "$IMAGE:${{ github.sha }}" .
+          docker push "$IMAGE:${{ github.sha }}"
+
+      - name: Build Docker image for pull request
+        if: github.event_name == 'pull_request'
+        run: docker build -t devops-capstone:pr-test .
